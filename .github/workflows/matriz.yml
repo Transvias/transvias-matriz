@@ -1,0 +1,101 @@
+# Gera a matriz de distâncias rodoviárias entre os municípios do Brasil.
+# Rodar à mão (Actions > Gerar matriz > Run workflow). Leva algumas horas; refazer a cada 6 a 12 meses.
+# Rodada completa (so vazio): publica a Release matriz-AAAA-MM-DD com matriz.tar.gz.
+# Teste (so preenchido): o resultado sai só como artefato "matriz".
+#
+# Mapa: OpenStreetMap via Geofabrik (licença ODbL: a página precisa citar "© OpenStreetMap contributors").
+# Roteador: OSRM, perfil de carro, algoritmo MLD.
+
+name: Gerar matriz
+
+on:
+  workflow_dispatch:
+    inputs:
+      so:
+        description: 'Só estas origens (slugs separados por vírgula). Vazio = todas.'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  matriz:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      OSRM_IMAGE: ghcr.io/project-osrm/osrm-backend:v5.27.1
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Liberar disco e criar swap
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo swapoff -a || true
+          sudo fallocate -l 16G /mnt/swapfile
+          sudo chmod 600 /mnt/swapfile && sudo mkswap /mnt/swapfile && sudo swapon /mnt/swapfile
+          free -h && df -h /mnt .
+
+      - name: Baixar o mapa do Brasil e manter só as vias
+        run: |
+          sudo apt-get update -q && sudo apt-get install -y -q osmium-tool
+          sudo mkdir -p /mnt/osm && sudo chown "$USER" /mnt/osm
+          cd /mnt/osm
+          curl -sSfL -o brasil.osm.pbf https://download.geofabrik.de/south-america/brazil-latest.osm.pbf
+          # Só vias por onde passa carro. Calçadas, trilhas, ciclovias e vias de serviço ficam de fora:
+          # não mudam a distância entre sedes de municípios e dobram a memória do osrm-extract.
+          osmium tags-filter brasil.osm.pbf \
+            w/highway=motorway,motorway_link,trunk,trunk_link,primary,primary_link,secondary,secondary_link,tertiary,tertiary_link,unclassified,residential,road \
+            r/type=restriction -o vias.osm.pbf
+          rm brasil.osm.pbf && ls -lh
+
+      - name: Preparar o OSRM
+        run: |
+          cd /mnt/osm
+          free -h
+          docker run --rm -v "$PWD:/data" $OSRM_IMAGE osrm-extract -p /opt/car.lua /data/vias.osm.pbf
+          docker run --rm -v "$PWD:/data" $OSRM_IMAGE osrm-partition /data/vias.osrm
+          docker run --rm -v "$PWD:/data" $OSRM_IMAGE osrm-customize /data/vias.osrm
+          rm vias.osm.pbf
+
+      - name: Subir o OSRM
+        run: |
+          docker run -d --name osrm -p 5000:5000 -v /mnt/osm:/data $OSRM_IMAGE \
+            osrm-routed --algorithm mld --max-table-size 10000 /data/vias.osrm
+          for i in $(seq 1 120); do curl -sf "http://127.0.0.1:5000/route/v1/driving/-46.63,-23.55;-47.06,-22.90" >/dev/null && break; sleep 5; done
+          curl -s "http://127.0.0.1:5000/route/v1/driving/-46.63,-23.55;-47.06,-22.90?overview=false" | head -c 300
+
+      - name: Calcular a matriz
+        env:
+          SO: ${{ inputs.so }}
+        run: |
+          node scripts/cidades.mjs
+          node scripts/matriz.mjs
+          node scripts/conferir.mjs
+
+      - name: Empacotar
+        run: |
+          mkdir -p out/pacote/matriz
+          cp out/matriz/*.bin out/pacote/matriz/
+          cp data/cidades.json out/pacote/
+          tar -czf out/matriz.tar.gz -C out/pacote .
+          ls -lh out/matriz.tar.gz
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: matriz
+          path: out/matriz.tar.gz
+          retention-days: 30
+
+      - name: Publicar Release
+        if: ${{ inputs.so == '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="matriz-$(date -u +%Y-%m-%d)"
+          gh release create "$tag" out/matriz.tar.gz --title "$tag" \
+            --notes "Distâncias rodoviárias entre $(node -p "require('./data/cidades.json').length") municípios. Dados © colaboradores do OpenStreetMap (ODbL)."

@@ -1,0 +1,11 @@
+{
+  "name": "transvias-matriz",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "cidades": "node scripts/cidades.mjs",
+    "matriz": "node scripts/matriz.mjs",
+    "conferir": "node scripts/conferir.mjs"
+  },
+  "engines": { "node": ">=20" }
+}
