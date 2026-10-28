@@ -22,11 +22,28 @@ const exemplos = [
   ['osasco-sp', 'campinas-sp'], ['sao-paulo-sp', 'rio-de-janeiro-rj'], ['sao-paulo-sp', 'porto-alegre-rs'],
   ['belo-horizonte-mg', 'brasilia-df'], ['recife-pe', 'salvador-ba'], ['sao-paulo-sp', 'manaus-am'],
 ];
+// No GitHub Actions, cada linha vira também uma anotação da rodada, que dá para ler pela API sem baixar o log.
+const avisar = (titulo, texto) => {
+  console.log(texto);
+  if (process.env.GITHUB_ACTIONS) console.log(`::notice title=${titulo}::${texto.replace(/%/g, '%25').replace(/\n/g, '%0A')}`);
+};
+
+const linhas = [];
 for (const [o, d] of exemplos) {
   if (!arquivos.includes(`${o}.bin`)) continue;
   const b = ler(o), j = idx[d];
-  console.log(`${o} -> ${d}: ${b.readUInt16LE(j * 2)} km, ${b.readUInt16LE(N * 2 + j * 2)} min (linha reta ${linhaReta(cidades[idx[o]], cidades[j]).toFixed(0)} km)`);
+  linhas.push(`${o} -> ${d}: ${b.readUInt16LE(j * 2)} km, ${b.readUInt16LE(N * 2 + j * 2)} min (linha reta ${linhaReta(cidades[idx[o]], cidades[j]).toFixed(0)} km)`);
 }
+if (linhas.length) avisar('Pares conhecidos', linhas.join('\n'));
+
+// Amostra: das primeiras origens geradas até cada capital, em km (para comparar com outras fontes).
+const capitais = cidades.filter((c) => c.capital);
+const amostra = {};
+for (const f of arquivos.slice(0, 10)) {
+  const b = ler(f.slice(0, -4));
+  amostra[f.slice(0, -4)] = Object.fromEntries(capitais.map((c) => [c.slug, b.readUInt16LE(idx[c.slug] * 2)]));
+}
+avisar('Amostra até as capitais', JSON.stringify(amostra));
 
 let pares = 0, semRota = 0, curtos = 0, longos = 0;
 for (const f of arquivos) {
@@ -41,4 +58,4 @@ for (const f of arquivos) {
     else if (reta > 20 && km > reta * 3) longos++;
   }
 }
-console.log(`${arquivos.length} origens, ${pares} pares: ${semRota} sem rota, ${curtos} menores que a linha reta, ${longos} acima de 3x a linha reta`);
+avisar('Resumo', `${arquivos.length} origens, ${pares} pares: ${semRota} sem rota, ${curtos} menores que a linha reta, ${longos} acima de 3x a linha reta`);
