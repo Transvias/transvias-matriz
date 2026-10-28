@@ -1,0 +1,73 @@
+# Plano B do "Gerar matriz": roda scripts/gerar.sh numa VM spot do Google Cloud com 32 GB
+# (e2-highmem-4), para quando a máquina do GitHub não der conta. A VM é apagada no fim, dê certo ou não.
+# Custo: algumas horas de VM spot, menos de US$ 1 por rodada.
+#
+# Precisa dos secrets do repositório (nunca no código):
+#   GCP_SA_KEY   JSON da conta de serviço, com os papéis "Compute Instance Admin (v1)" e
+#                "Service Account User" no projeto
+#   GCP_PROJECT  id do projeto do Google Cloud
+#
+# O resultado sai como artefato "matriz" (matriz.tar.gz), apagado em 3 dias, igual ao outro workflow.
+
+name: Gerar matriz (Google Cloud)
+
+on:
+  workflow_dispatch:
+    inputs:
+      so:
+        description: 'Só estas origens (slugs separados por vírgula). Vazio = todas.'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  matriz:
+    runs-on: ubuntu-latest
+    timeout-minutes: 600
+    env:
+      VM: matriz-${{ github.run_id }}
+      ZONA: southamerica-east1-b
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          project_id: ${{ secrets.GCP_PROJECT }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Criar a VM
+        run: |
+          gcloud compute instances create "$VM" --zone "$ZONA" \
+            --machine-type e2-highmem-4 --provisioning-model SPOT --instance-termination-action DELETE \
+            --image-family ubuntu-2404-lts-amd64 --image-project ubuntu-os-cloud --boot-disk-size 60GB
+          for i in $(seq 1 30); do gcloud compute ssh "$VM" --zone "$ZONA" --quiet --command true && break; sleep 10; done
+
+      - name: Gerar a matriz na VM
+        env:
+          SO: ${{ inputs.so }}
+        run: |
+          tar -czf /tmp/repo.tar.gz --exclude=.git .
+          gcloud compute scp /tmp/repo.tar.gz "$VM":~/repo.tar.gz --zone "$ZONA"
+          gcloud compute ssh "$VM" --zone "$ZONA" --command "
+            set -e
+            sudo apt-get update -q && sudo apt-get install -y -q docker.io osmium-tool curl
+            curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - && sudo apt-get install -y -q nodejs
+            mkdir -p repo && tar -xzf repo.tar.gz -C repo
+            cd repo && sudo OSM_DIR=/mnt/osm SO='$SO' bash scripts/gerar.sh
+          "
+          gcloud compute scp "$VM":~/repo/out/matriz.tar.gz out-matriz.tar.gz --zone "$ZONA"
+          mkdir -p out && mv out-matriz.tar.gz out/matriz.tar.gz
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: matriz
+          path: out/matriz.tar.gz
+          retention-days: 3
+
+      - name: Apagar a VM
+        if: always()
+        run: gcloud compute instances delete "$VM" --zone "$ZONA" --quiet || true
