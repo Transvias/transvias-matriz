@@ -14,7 +14,10 @@ Actions > **Gerar matriz** > Run workflow.
 - Com `so` vazio, calcula todas as origens (algumas horas). Com `so` preenchido (slugs separados por
   vírgula), calcula só essas origens, para teste.
 - O resultado sai como artefato `matriz` (`matriz.tar.gz` com `matriz/<slug>.bin` + `cidades.json`),
-  apagado em 3 dias. A matriz pronta é guardada fora deste repositório.
+  apagado em 3 dias. A matriz pronta é guardada fora deste repositório: no repositório do site, rode o
+  workflow **Publicar** informando o número desta rodada (o da URL `.../actions/runs/<número>`).
+
+Refazer a cada 6 a 12 meses, ou quando abrir uma rodovia importante.
 
 | Arquivo | O que faz |
 | --- | --- |
