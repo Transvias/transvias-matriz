@@ -46,10 +46,12 @@ jobs:
           sudo mkdir -p /mnt/osm && sudo chown "$USER" /mnt/osm
           cd /mnt/osm
           curl -sSfL -o brasil.osm.pbf https://download.geofabrik.de/south-america/brazil-latest.osm.pbf
-          # Só vias por onde passa carro. Calçadas, trilhas, ciclovias e vias de serviço ficam de fora:
-          # não mudam a distância entre sedes de municípios e dobram a memória do osrm-extract.
+          # Só vias por onde passa carro, mais as balsas (Manaus, Macapá, Boa Vista e outras cidades da
+          # Amazônia só têm ligação rodoviária com travessia). Vias de serviço entram porque o acesso aos
+          # portos de balsa costuma ser highway=service. Calçadas, trilhas e ciclovias ficam de fora.
           osmium tags-filter brasil.osm.pbf \
-            w/highway=motorway,motorway_link,trunk,trunk_link,primary,primary_link,secondary,secondary_link,tertiary,tertiary_link,unclassified,residential,road \
+            w/highway=motorway,motorway_link,trunk,trunk_link,primary,primary_link,secondary,secondary_link,tertiary,tertiary_link,unclassified,residential,road,service \
+            w/route=ferry \
             r/type=restriction -o vias.osm.pbf
           rm brasil.osm.pbf && ls -lh
 

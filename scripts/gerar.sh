@@ -17,7 +17,8 @@ mkdir -p "$OSM_DIR"
 echo "== Mapa"
 curl -sSfL -o "$OSM_DIR/brasil.osm.pbf" https://download.geofabrik.de/south-america/brazil-latest.osm.pbf
 osmium tags-filter "$OSM_DIR/brasil.osm.pbf" \
-  w/highway=motorway,motorway_link,trunk,trunk_link,primary,primary_link,secondary,secondary_link,tertiary,tertiary_link,unclassified,residential,road \
+  w/highway=motorway,motorway_link,trunk,trunk_link,primary,primary_link,secondary,secondary_link,tertiary,tertiary_link,unclassified,residential,road,service \
+  w/route=ferry \
   r/type=restriction -o "$OSM_DIR/vias.osm.pbf" --overwrite
 rm "$OSM_DIR/brasil.osm.pbf"
 
