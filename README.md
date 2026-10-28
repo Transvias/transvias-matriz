@@ -5,15 +5,16 @@ www.transvias.com.br/distancias. Calculadas com [OSRM](https://project-osrm.org/
 OpenStreetMap, uma vez a cada 6 a 12 meses.
 
 O repositório é público para usar as máquinas maiores e gratuitas do GitHub Actions. Aqui só ficam os
-scripts e os dados públicos (IBGE e OpenStreetMap); o site fica em outro repositório.
+scripts e a lista pública de municípios do IBGE.
 
 ## Como gerar
 
 Actions > **Gerar matriz** > Run workflow.
 
-- Com `so` vazio, calcula todas as origens (algumas horas) e publica uma Release `matriz-AAAA-MM-DD`
-  com `matriz.tar.gz` (`matriz/<slug>.bin` + `cidades.json`). O deploy do site baixa a Release mais nova.
-- Com `so` preenchido (slugs separados por vírgula), é só um teste: o resultado sai como artefato.
+- Com `so` vazio, calcula todas as origens (algumas horas). Com `so` preenchido (slugs separados por
+  vírgula), calcula só essas origens, para teste.
+- O resultado sai como artefato `matriz` (`matriz.tar.gz` com `matriz/<slug>.bin` + `cidades.json`),
+  apagado em 3 dias. A matriz pronta é guardada fora deste repositório.
 
 | Arquivo | O que faz |
 | --- | --- |
@@ -35,4 +36,3 @@ node scripts/conferir.mjs
 ```
 
 Dados do mapa © colaboradores do OpenStreetMap, licença [ODbL](https://opendatacommons.org/licenses/odbl/).
-A matriz publicada é um banco de dados derivado e segue a mesma licença.

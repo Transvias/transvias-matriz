@@ -1,7 +1,7 @@
 # Gera a matriz de distâncias rodoviárias entre os municípios do Brasil.
 # Rodar à mão (Actions > Gerar matriz > Run workflow). Leva algumas horas; refazer a cada 6 a 12 meses.
-# Rodada completa (so vazio): publica a Release matriz-AAAA-MM-DD com matriz.tar.gz.
-# Teste (so preenchido): o resultado sai só como artefato "matriz".
+# O resultado sai como artefato "matriz" (matriz.tar.gz), apagado em 3 dias. Quem gera a matriz copia o
+# arquivo para a Release do repositório privado do site; a matriz pronta não fica publicada aqui.
 #
 # Mapa: OpenStreetMap via Geofabrik (licença ODbL: a página precisa citar "© OpenStreetMap contributors").
 # Roteador: OSRM, perfil de carro, algoritmo MLD.
@@ -17,7 +17,7 @@ on:
         default: ''
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   matriz:
@@ -89,13 +89,4 @@ jobs:
         with:
           name: matriz
           path: out/matriz.tar.gz
-          retention-days: 30
-
-      - name: Publicar Release
-        if: ${{ inputs.so == '' }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          tag="matriz-$(date -u +%Y-%m-%d)"
-          gh release create "$tag" out/matriz.tar.gz --title "$tag" \
-            --notes "Distâncias rodoviárias entre $(node -p "require('./data/cidades.json').length") municípios. Dados © colaboradores do OpenStreetMap (ODbL)."
+          retention-days: 3
